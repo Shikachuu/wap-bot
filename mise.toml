@@ -1,0 +1,42 @@
+[tools]
+go = "1.25.3"
+golangci-lint = "v2.5.0"
+
+[settings]
+lockfile = true
+auto_install = true
+env_file = ".env"
+experimental = true
+task_output = "quiet"
+
+[tasks.init]
+description = "Run initial repo setup commands"
+run = """
+#!/usr/bin/env bash
+go mod download
+[[ ! -f .env ]] && echo 'Creating .env file...' && cp .env.example .env
+"""
+
+[tasks.build]
+description = "Builds a statically linked binary"
+run = 'go build -o bin/bot -a -ldflags "-w -s" cmd/bot/main.go'
+env = { CGO_ENABLED = '0' }
+sources = ["go.mod", "go.sum", "**/*.go"]
+outputs = "bin/bot"
+alias = "b"
+
+[tasks.start]
+description = "Runs the built binary"
+depends = ["build"]
+run = "bin/bot"
+
+[tasks.test]
+description = "Run tests"
+run = "go test ./... -cover"
+
+[tasks.lint]
+description = "Lint golang and protobuf code"
+run = [
+  "golangci-lint run --config .golangci-lint.yml --fix",
+]
+
