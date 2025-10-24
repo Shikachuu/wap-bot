@@ -1,0 +1,34 @@
+display_information:
+  name: WAP Management Bot
+  description: Helps the WAP organizers manage the processes, like posting, or summarizing threads.
+  background_color: "#1DB954"
+  long_description: Mention this bot in any thread with 'summarize' to get a CSV file of all Spotify and YouTube links shared in that thread, complete with song titles, artists, and who shared them.
+
+features:
+  bot_user:
+    display_name: WAP Bot
+    always_online: true
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read # Detect when bot is mentioned
+      - channels:history # Read public channel messages
+      - groups:history # Read private channel messages
+      - files:write # Upload CSV files
+      - files:read # Read uploaded files
+      - chat:write # Send messages
+      - users:read # Get user information for names
+      - team:read # Get workspace info
+
+settings:
+  event_subscriptions:
+    bot_events:
+      - app_mention # When someone @mentions the bot
+
+  interactivity:
+    is_enabled: false # We don't need interactivity for this bot
+
+  org_deploy_enabled: false
+  socket_mode_enabled: true # Important: Enable Socket Mode
+  token_rotation_enabled: false
