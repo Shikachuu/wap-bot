@@ -1,15 +1,14 @@
+// Package main
 package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
-	"slices"
-	"strings"
 	"syscall"
 
+	"github.com/Shikachuu/wap-bot/internal/config"
 	"github.com/Shikachuu/wap-bot/internal/messageprocessor"
 	"github.com/Shikachuu/wap-bot/internal/services"
 	"github.com/Shikachuu/wap-bot/pkg/musicextractors"
@@ -30,7 +29,7 @@ var titleExtractors = map[musicextractors.ExtractProvider]musicextractors.TitleE
 }
 
 func main() {
-	isDebug := inDebugMode()
+	isDebug := config.InDebugMode()
 
 	level := slog.LevelInfo
 	if isDebug {
@@ -45,14 +44,14 @@ func main() {
 	slog.SetDefault(logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	botToken, appToken, err := getConfig()
+	botToken, appToken, err := config.GetConfig()
 	if err != nil {
 		slog.Error("failed to get configuration", "error", err)
+		cancel()
 		os.Exit(1)
 	}
 
@@ -75,7 +74,7 @@ func main() {
 	go func() {
 		slog.Info("starting slack socket connection...")
 
-		if err := client.RunContext(ctx); err != nil {
+		if rErr := client.RunContext(ctx); rErr != nil {
 			slog.Error("slack client error", "error", err)
 		}
 	}()
@@ -86,39 +85,4 @@ func main() {
 	cancel()
 
 	slog.Info("shutdown complete")
-}
-
-func inDebugMode() bool {
-	debugEnabledOptions := []string{"1", "true", "enable"}
-
-	if slices.Contains(debugEnabledOptions, strings.ToLower(os.Getenv("DEBUG"))) {
-		return true
-	}
-
-	return false
-}
-
-func getConfig() (string, string, error) {
-	var (
-		botToken = os.Getenv("SLACK_BOT_TOKEN")
-		appToken = os.Getenv("SLACK_APP_TOKEN")
-	)
-
-	if botToken == "" {
-		return "", "", errors.New("SLACK_BOT_TOKEN variable is required")
-	}
-
-	if !strings.HasPrefix(botToken, "xoxb-") {
-		return "", "", errors.New(`SLACK_BOT_TOKEN variable must have a prefix "xoxb-"`)
-	}
-
-	if !strings.HasPrefix(appToken, "xapp-") {
-		return "", "", errors.New(`SLACK_APP_TOKEN variable must have a prefix "xapp-"`)
-	}
-
-	if appToken == "" {
-		return "", "", errors.New("SLACK_APP_TOKEN variable is required")
-	}
-
-	return botToken, appToken, nil
 }

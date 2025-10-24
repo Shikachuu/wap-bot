@@ -1,11 +1,15 @@
+// Package musicextractors contains the reusable logic for extracting different music URLs from long texts
 package musicextractors
 
 // ExtractProvider stands for the implemented URL and Title extract providers.
 type ExtractProvider string
 
 const (
-	SpotifyProvider       ExtractProvider = "spotify"
-	YouTubeProvider       ExtractProvider = "youtube"
+	// SpotifyProvider that implements both URL and music title extractor funcs.
+	SpotifyProvider ExtractProvider = "spotify"
+	// YouTubeProvider that implements both URL and music title extractor funcs.
+	YouTubeProvider ExtractProvider = "youtube"
+	// YoutTubeMusicProvider that implements both URL and music title extractor funcs.
 	YoutTubeMusicProvider ExtractProvider = "youtube-music"
 )
 

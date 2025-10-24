@@ -1,0 +1,222 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: standard
+  enable:
+    # Error handling
+    - errorlint # Go 1.13+ error wrapping
+    - err113 # Error wrapping patterns
+    - wrapcheck # Check errors from external packages are wrapped
+    - nilerr # Returns nil even when err != nil
+    - nilnil # Simultaneous nil error and invalid value
+    - errname # Sentinel errors prefixed with Err
+
+    # Resource management
+    - bodyclose # HTTP response body closed
+    - contextcheck # Non-inherited context usage
+    - durationcheck # Duration multiplication errors
+    - exhaustive # Exhaustive enum switches
+    - noctx # HTTP requests without context
+
+    # Slog and logging
+    - sloglint # Consistent log/slog usage
+    - loggercheck # Key-value pairs for loggers
+
+    # Code quality
+    - gocognit # Cognitive complexity
+    - gocyclo # Cyclomatic complexity
+    - gosec # Security issues
+    - misspell # Spelling errors
+    - prealloc # Preallocate slices
+    - predeclared # Shadowing predeclared identifiers
+    - reassign # Too many blank identifiers
+    - revive # General linting
+    - unconvert # Unnecessary conversions
+    - unparam # Unused function parameters
+    - usestdlibvars # Use stdlib constants
+    - wastedassign # Wasted assignments
+
+    # Whitespace and formatting
+    - whitespace # Leading/trailing whitespace
+    - nlreturn # Newline before return
+    - wsl_v5 # Whitespace linter v5
+    - godot # Comments end with period
+
+    # Performance
+    - asasalint # []any as any in variadic
+    - nakedret # Naked returns
+    - perfsprint # Faster fmt alternatives
+
+    # Best practices
+    - bidichk # Dangerous unicode
+    - copyloopvar # Loop variable copies
+    - decorder # Declaration order
+    - dogsled # Too many blank identifiers
+    - dupword # Duplicate words in comments
+    - forcetypeassert # Forced type assertions
+    - goconst # Repeated strings -> constants
+    - gocritic # Comprehensive checks
+    - godot # Comment punctuation
+    - gomoddirectives # go.mod directives
+    - gomodguard # Module dependency rules
+    - goprintffuncname # Printf naming
+    - grouper # Expression groups
+    - importas # Import aliases
+    - makezero # Slice initial length
+    - musttag # Struct field tags
+    - nolintlint # Nolint directives
+    - tagalign # Struct tag alignment
+
+    - testableexamples # Testable examples
+    - testifylint # Testify usage
+    - thelper # Test helpers with t.Helper()
+    - tparallel # t.Parallel() usage
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+
+    exhaustive:
+      check:
+        - switch
+        - map
+      default-signifies-exhaustive: true
+
+    govet:
+      enable-all: true
+      settings:
+        shadow:
+          strict: true
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    staticcheck:
+      checks: ["all"]
+
+    sloglint:
+      no-mixed-args: true
+      kv-only: true
+      attr-only: false
+      no-global: ""
+      context: "scope"
+      static-msg: true
+      no-raw-keys: false
+      key-naming-case: snake
+      args-on-sep-lines: false
+
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G104
+
+    gocyclo:
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 20
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+        - opinionated
+      disabled-checks:
+        - whyNoLint
+        - unnamedResult
+
+    nlreturn:
+      block-size: 2
+
+    misspell:
+      locale: US
+
+    nakedret:
+      max-func-lines: 0
+
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+
+    testifylint:
+      enable-all: true
+
+    thelper:
+      test:
+        first: true
+        name: true
+        begin: true
+      benchmark:
+        first: true
+        name: true
+        begin: true
+
+    unparam:
+      check-exported: true
+
+  exclusions:
+    rules:
+      - path: '_test\.go'
+        linters:
+          - gocyclo
+          - errcheck
+          - gosec
+          - goconst
+          - wrapcheck
+          - err113
+
+      - path: 'cmd/bot/main\.go'
+        linters:
+          - wrapcheck
+
+severity:
+  default: error

@@ -1,7 +1,6 @@
 package musicextractors
 
 import (
-	"errors"
 	"regexp"
 )
 
@@ -20,33 +19,33 @@ func regexURLExtractor(text string, re *regexp.Regexp) (string, error) {
 	return matches[0], nil
 }
 
+// SpotifyURLExtractor finds spotify track links in a given text
+//
+// returns the found url, the type of ExtractProvider and an error if any.
 func SpotifyURLExtractor(text string) (string, ExtractProvider, error) {
-	spotifyRegex, err := regexp.Compile(`https?://(?:open\.)?spotify\.com/track/[\w\-?=&]+`)
-	if err != nil {
-		return "", SpotifyProvider, errors.Join(ErrInvalidRegexCompiled, err)
-	}
+	spotifyRegex := regexp.MustCompile(`https?://(?:open\.)?spotify\.com/track/[\w\-?=&]+`)
 
 	url, err := regexURLExtractor(text, spotifyRegex)
 
 	return url, SpotifyProvider, err
 }
 
+// YouTubeURLExtractor finds youtube watch links in a given text
+//
+// returns the found url, the type of ExtractProvider and an error if any.
 func YouTubeURLExtractor(text string) (string, ExtractProvider, error) {
-	youtubeRegex, err := regexp.Compile(`https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)[\w\-]+`)
-	if err != nil {
-		return "", YouTubeProvider, errors.Join(ErrInvalidRegexCompiled, err)
-	}
+	youtubeRegex := regexp.MustCompile(`https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)[\w\-]+`)
 
 	url, err := regexURLExtractor(text, youtubeRegex)
 
 	return url, YouTubeProvider, err
 }
 
+// YouTubeMusicURLExtractor finds youtube music watch links in a given text
+//
+// returns the found url, the type of ExtractProvider and an error if any.
 func YouTubeMusicURLExtractor(text string) (string, ExtractProvider, error) {
-	youtubeMusicRegex, err := regexp.Compile(`https?://music\.youtube\.com/watch\?v=[\w\-]+(?:&[\w=&\-]+)?`)
-	if err != nil {
-		return "", YoutTubeMusicProvider, errors.Join(ErrInvalidRegexCompiled, err)
-	}
+	youtubeMusicRegex := regexp.MustCompile(`https?://music\.youtube\.com/watch\?v=[\w\-]+(?:&[\w=&\-]+)?`)
 
 	url, err := regexURLExtractor(text, youtubeMusicRegex)
 

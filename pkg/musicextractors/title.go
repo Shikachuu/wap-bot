@@ -1,6 +1,7 @@
 package musicextractors
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,12 +11,20 @@ import (
 )
 
 // SpotifyTitleExtractor fetches and extracts the title from a Spotify URL using Open Graph meta tags.
-func SpotifyTitleExtractor(url string) (string, error) {
-	resp, err := http.Get(url)
+func SpotifyTitleExtractor(musicURL string) (string, error) {
+	request, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, musicURL, http.NoBody)
 	if err != nil {
 		return "", ErrRequestFailed
 	}
-	defer resp.Body.Close()
+
+	resp, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", ErrRequestFailed
+	}
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", ErrRequestFailed
@@ -77,11 +86,19 @@ func YouTubeTitleExtractor(videoURL string) (string, error) {
 	query.Add("url", videoURL)
 	oembed.RawQuery = query.Encode()
 
-	resp, err := http.Get(oembed.String())
+	request, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, oembed.String(), http.NoBody)
 	if err != nil {
 		return "", ErrRequestFailed
 	}
-	defer resp.Body.Close()
+
+	resp, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", ErrRequestFailed
+	}
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", ErrRequestFailed
@@ -91,7 +108,7 @@ func YouTubeTitleExtractor(videoURL string) (string, error) {
 		Title string `json:"title"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", ErrNoTitleFound
 	}
 
