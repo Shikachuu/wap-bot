@@ -94,17 +94,19 @@ func (s *slackMessageProcessor) SummarizeThread(channelID, threadTS string) {
 		return
 	}
 
+	fileName := fmt.Sprintf("%s-%s.csv", channelID, threadTS)
+
 	_, err = s.client.UploadFileV2(slack.UploadFileV2Parameters{
 		Reader:          csvF,
-		Filename:        channelID + "-" + threadTS + ".csv",
-		Title:           "Music URLs from Thread",
+		Filename:        fileName,
+		Title:           fileName,
 		InitialComment:  fmt.Sprintf("Found %d music URLs in this thread", len(pmls)),
 		Channel:         channelID,
 		ThreadTimestamp: threadTS,
 		FileSize:        size,
 	})
 	if err != nil {
-		logger.Error("failed to post csv file to thread", "error", err, "api", "v2")
+		logger.Error("failed to post csv file to thread", "error", err)
 		return
 	}
 
@@ -144,7 +146,7 @@ func (s *slackMessageProcessor) createCSV(pmls []parsedMusicLink) (io.Reader, in
 		return nil, 0, fmt.Errorf("flushing csv buffer: %w", err)
 	}
 
-	return bytes.NewReader(buff.Bytes()), buff.Cap(), nil
+	return bytes.NewReader(buff.Bytes()), buff.Len(), nil
 }
 
 // NewSlackMessageProcessor creates a new processor with the given url and title extractors.
