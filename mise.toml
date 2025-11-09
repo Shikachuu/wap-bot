@@ -50,7 +50,7 @@ alias = "s"
 
 [tasks.test]
 description = "Run tests"
-run = "go test ./... -cover"
+run = "go test ./... -cover -race"
 
 [tasks.lint]
 description = "Lint golang and protobuf code"
