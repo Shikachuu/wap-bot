@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Shikachuu/wap-bot/internal/config"
-	"github.com/Shikachuu/wap-bot/internal/messageprocessor"
+	"github.com/Shikachuu/wap-bot/internal/domain"
 	"github.com/Shikachuu/wap-bot/internal/services"
 	"github.com/Shikachuu/wap-bot/internal/telemetry"
 	"github.com/Shikachuu/wap-bot/pkg/musicextractors"
@@ -67,7 +67,7 @@ func run(ctx context.Context, cancel context.CancelFunc) error {
 
 	client := socketmode.New(api)
 
-	smp := messageprocessor.NewSlackMessageProcessor(api, urlProcessors, titleExtractors)
+	smp := domain.NewSlackMessageProcessor(urlProcessors, titleExtractors)
 
 	sb := services.NewSlackBot(smp, client)
 

@@ -1,32 +1,24 @@
-// Package services contains the available communication layers of the application
 package services
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 
-	"github.com/Shikachuu/wap-bot/internal/messageprocessor"
+	"github.com/Shikachuu/wap-bot/internal/domain"
+	"github.com/Shikachuu/wap-bot/internal/telemetry"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
+	"go.opentelemetry.io/otel/attribute"
 )
 
-// SlackBot is the main communication layer of the application, contains and handles socket connections and sync Slack API calls.
+// SlackBot is the main communication layer of the application,
+// contains and handles socket connections and sync Slack API calls.
 type SlackBot struct {
-	slackMessageProcessor messageprocessor.SlackMessageProcessor
+	slackMessageProcessor domain.MessageProcessorDomain
 	socketClient          *socketmode.Client
 }
-
-type commandType string
-
-// CommandSummarize is the command that tells handleMentions to run slackMessageProcessor's message handler.
-const CommandSummarize commandType = "summarize"
-
-// ErrInvalidCommandType returned by handleMentions in case of an unimplemented CommandType occures.
-var ErrInvalidCommandType = errors.New("invalid command type")
 
 // HandleEvents is the main event loop that listens to Slack Socket Events and handles them based on the event's Type field.
 func (bot *SlackBot) HandleEvents(ctx context.Context) {
@@ -39,6 +31,13 @@ func (bot *SlackBot) HandleEvents(ctx context.Context) {
 				slog.InfoContext(ctx, "events channel closed")
 				return
 			}
+
+			ctx, t := telemetry.Tracer.Start(ctx, "slackbot.handle_events")
+			t.SetAttributes(
+				attribute.String("event.type", string(evt.Type)),
+			)
+
+			defer t.End()
 
 			logger := slog.With("event_type", evt.Type)
 			switch evt.Type {
@@ -55,43 +54,65 @@ func (bot *SlackBot) HandleEvents(ctx context.Context) {
 			default:
 				logger.WarnContext(ctx, "not implemented event received")
 			}
+			t.End()
 		}
 	}
 }
 
 func (bot *SlackBot) handleEventsAPI(ctx context.Context, logger *slog.Logger, evt *socketmode.Event) {
+	ctx, t := telemetry.Tracer.Start(ctx, "slackbot.handle_events_api")
+	defer t.End()
+
 	eventsAPIEvent, isAPIEvent := evt.Data.(slackevents.EventsAPIEvent)
 	if !isAPIEvent {
-		logger.WarnContext(ctx, "ignored invalid events api data")
+		_ = telemetry.WrapErrorWithTrace(t, "", errIgnoredInvalidAPI)
+		logger.WarnContext(ctx, errIgnoredInvalidAPI.Error())
 		return
 	}
 
+	telemetry.StartEvent(t, telemetry.SendACKEvent)
 	bot.socketClient.Ack(*evt.Request)
+	telemetry.EndEvent(t, telemetry.SendACKEvent)
 
 	if eventsAPIEvent.Type != slackevents.CallbackEvent {
+		t.AddEvent("ignored_non_callback_event")
 		return
 	}
 
 	innerEvent := eventsAPIEvent.InnerEvent
 	switch ev := innerEvent.Data.(type) {
 	case *slackevents.AppMentionEvent:
-		if err := bot.handleMentions(ev); err != nil {
-			logger.ErrorContext(ctx, "failed to handle event", "error", err)
+		telemetry.StartEvent(t, telemetry.HandleMentionsEvent)
+		t.SetAttributes(attribute.String("user.id", ev.User), attribute.String("slack.channel_id", ev.Channel))
+		if err := bot.handleMentions(ctx, ev); err != nil {
+			_ = telemetry.WrapErrorWithTrace(t, "", errHandleEvent)
+			logger.ErrorContext(ctx, errHandleEvent.Error(), "error", err)
 		}
+		telemetry.EndEvent(t, telemetry.HandleMentionsEvent)
 	default:
-		logger.WarnContext(ctx, "not implemented events api event received", "events_api_event_type", innerEvent.Type)
+		_ = telemetry.WrapErrorWithTrace(t, "", errHandleEvent)
+		logger.WarnContext(ctx, errNotImplementedEvent.Error(), "events_api_event_type", innerEvent.Type)
 	}
 }
 
-func (bot *SlackBot) handleMentions(event *slackevents.AppMentionEvent) error {
+func (bot *SlackBot) handleMentions(ctx context.Context, event *slackevents.AppMentionEvent) error {
+	ctx, t := telemetry.Tracer.Start(ctx, "slackbot.handle_mentions")
+	defer t.End()
+
 	if event.ThreadTimeStamp == "" {
-		_, err := bot.socketClient.PostEphemeral(
+		telemetry.StartEvent(t, telemetry.NonThreadPostEphemeralEvent)
+
+		_, err := bot.socketClient.PostEphemeralContext(
+			ctx,
 			event.Channel,
 			event.User,
 			slack.MsgOptionText("Bot is only usable in threads to summarize them", false),
 		)
+
+		telemetry.EndEvent(t, telemetry.NonThreadPostEphemeralEvent)
+
 		if err != nil {
-			return fmt.Errorf("unable to post ephemeral notification text to user: %w", err)
+			return telemetry.WrapErrorWithTrace(t, "unable to post ephemeral notification", err)
 		}
 
 		return nil
@@ -99,16 +120,72 @@ func (bot *SlackBot) handleMentions(event *slackevents.AppMentionEvent) error {
 
 	switch {
 	case strings.Contains(event.Text, string(CommandSummarize)):
-		bot.slackMessageProcessor.SummarizeThread(event.Channel, event.ThreadTimeStamp)
+		err := bot.processThread(ctx, event.Channel, event.ThreadTimeStamp)
+		if err != nil {
+			return telemetry.WrapErrorWithTrace(t, "processing thread", err)
+		}
+
 	default:
-		return ErrInvalidCommandType
+		return telemetry.WrapErrorWithTrace(t, "parsing command", ErrInvalidCommandType)
 	}
 
 	return nil
 }
 
+func (bot *SlackBot) processThread(ctx context.Context, channelID, threadTS string) error {
+	ctx, t := telemetry.Tracer.Start(ctx, "slackbot.process_thread")
+	defer t.End()
+
+	t.SetAttributes(
+		attribute.String("slack.channel_id", channelID),
+		attribute.String("slack.thread_ts", threadTS),
+	)
+
+	logger := slog.With("channel_id", channelID, "thread_ts", threadTS)
+
+	logger.DebugContext(ctx, "processing thread")
+
+	telemetry.StartEvent(t, telemetry.GetConversationRepliesEvent)
+	msgs, _, _, err := bot.socketClient.GetConversationRepliesContext(
+		ctx,
+		&slack.GetConversationRepliesParameters{
+			ChannelID: channelID,
+			Timestamp: threadTS,
+			Limit:     1000,
+		},
+	)
+	telemetry.EndEvent(t, telemetry.GetConversationRepliesEvent)
+
+	if err != nil {
+		return telemetry.WrapErrorWithTrace(t, "get slack thread replies", err)
+	}
+
+	telemetry.StartEvent(t, telemetry.SummarizeThreadEvent)
+	t.SetAttributes(attribute.Int("slack.message_count", len(msgs)))
+	reply, err := bot.slackMessageProcessor.SummarizeThread(msgs, channelID, threadTS)
+	telemetry.EndEvent(t, telemetry.SummarizeThreadEvent)
+
+	if err != nil {
+		return telemetry.WrapErrorWithTrace(t, "summarizing thread", err)
+	}
+
+	t.SetAttributes(attribute.Int("file.size", reply.FileSize), attribute.String("file.name", reply.Filename))
+
+	telemetry.StartEvent(t, telemetry.UploadFileV2Event)
+	_, err = bot.socketClient.UploadFileV2(reply)
+	telemetry.EndEvent(t, telemetry.UploadFileV2Event)
+
+	if err != nil {
+		return telemetry.WrapErrorWithTrace(t, "uploading file to reply", err)
+	}
+
+	logger.InfoContext(ctx, "summarized thread")
+
+	return nil
+}
+
 // NewSlackBot creates a new slack bot with the given message processor and socket client.
-func NewSlackBot(smp messageprocessor.SlackMessageProcessor, sc *socketmode.Client) *SlackBot {
+func NewSlackBot(smp domain.MessageProcessorDomain, sc *socketmode.Client) *SlackBot {
 	return &SlackBot{
 		slackMessageProcessor: smp,
 		socketClient:          sc,
