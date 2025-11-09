@@ -1,0 +1,14 @@
+defaultBaseImage: "gcr.io/distroless/static-debian13:nonroot"
+builds:
+  - id: bot
+    dir: .
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/bot
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+defaultPlatforms:
+  - linux/amd64

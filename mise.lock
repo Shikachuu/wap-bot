@@ -10,3 +10,12 @@ backend = "aqua:golangci/golangci-lint"
 checksum = "sha256:0b3cbdc2a2472f60b538ebccb1b2e1ae5d938a051c010591aa68c6efd3706672"
 size = 13629335
 url = "https://github.com/golangci/golangci-lint/releases/download/v2.5.0/golangci-lint-2.5.0-darwin-arm64.tar.gz"
+
+[[tools.ko]]
+version = "v0.18.0"
+backend = "aqua:ko-build/ko"
+
+[tools.ko.platforms.macos-arm64]
+checksum = "sha256:2efa5796986e38994a3a233641b98404fa071a76456e3c99b3c00df0436d5833"
+size = 11028834
+url = "https://github.com/ko-build/ko/releases/download/v0.18.0/ko_0.18.0_Darwin_arm64.tar.gz"
