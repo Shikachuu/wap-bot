@@ -1,4 +1,3 @@
-// Package telemetry contains configuration funcs for application telemetry data like logging or tracing.
 package telemetry
 
 import (
