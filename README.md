@@ -26,6 +26,25 @@ Either by extracting Spotify, YouTube, and YouTube Music links from Slack thread
   - App-Level Token (`xapp-*`)
   - See `deploy/slack-app.yaml` for required scopes
 
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure the following required variables:
+
+**Slack Configuration:**
+- `SLACK_BOT_TOKEN` - Bot User OAuth Token (starts with `xoxb-`)
+- `SLACK_APP_TOKEN` - App-Level Token for Socket Mode (starts with `xapp-`)
+- `DEBUG` - Enable debug logging (`true` or `false`)
+
+**OpenTelemetry Configuration:**
+- `OTEL_SERVICE_NAME` - Service identifier (default: `wap-bot`)
+- `OTEL_METRICS_EXPORTER` - Metrics format: `none`, `otlp`, `prometheus`, or `console`
+- `OTEL_TRACES_EXPORTER` - Traces format: `none`, `otlp`, or `console`
+- `OTEL_EXPORTER_OTLP_PROTOCOL` - Protocol: `grpc` or `http/protobuf`
+- `OTEL_EXPORTER_OTLP_ENDPOINT` - OTLP collector endpoint (default: `http://otel-lgtm:4317`)
+- `OTEL_EXPORTER_PROMETHEUS_HOST` - Prometheus server host (only if using Prometheus exporter)
+
+See `.env.example` for complete configuration options and defaults.
+
 ### Local Development
 
 1. **Setup environment:**
