@@ -1,5 +1,5 @@
-// Package messageprocessor contains implemented slack message processors
-package messageprocessor
+// Package domain contains implemented slack message processors, contains the main business logic
+package domain
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 
 	"github.com/Shikachuu/wap-bot/pkg/musicextractors"
 	"github.com/slack-go/slack"
@@ -19,20 +18,19 @@ type parsedMusicLink struct {
 	Type  musicextractors.ExtractProvider
 }
 
-// SlackMessageProcessor contains the core business logic to iterate over a thread and pull every implemented music related info from them.
-type SlackMessageProcessor interface {
-	SummarizeThread(channelID, threadTS string)
+// MessageProcessorDomain contains the core business logic to iterate over a thread and pull every implemented music related info from them.
+type MessageProcessorDomain interface {
+	SummarizeThread(msgs []slack.Message, channelID, threadTS string) (slack.UploadFileV2Parameters, error)
 }
 
-type slackMessageProcessor struct {
-	client      *slack.Client
+type messageProcessorDomain struct {
 	processors  map[musicextractors.ExtractProvider]musicextractors.MusicURLExtractorFunc
 	titleParser map[musicextractors.ExtractProvider]musicextractors.TitleExtractorFunc
 }
 
-var _ SlackMessageProcessor = (*slackMessageProcessor)(nil)
+var _ MessageProcessorDomain = (*messageProcessorDomain)(nil)
 
-func (s *slackMessageProcessor) extractMusicURL(text string) (parsedMusicLink, error) {
+func (s *messageProcessorDomain) extractMusicURL(text string) (parsedMusicLink, error) {
 	for _, process := range s.processors {
 		url, p, err := process(text)
 		if err != nil {
@@ -58,30 +56,15 @@ func (s *slackMessageProcessor) extractMusicURL(text string) (parsedMusicLink, e
 	return parsedMusicLink{}, musicextractors.ErrNoURLFound
 }
 
-// SummarizeThread iterates over every message on a thread with a given channelID and threadTS and creates a summarized response.
-func (s *slackMessageProcessor) SummarizeThread(channelID, threadTS string) {
-	logger := slog.With("channel_id", channelID, "thread_ts", threadTS)
-
-	logger.Debug("processing thread")
-
-	params := &slack.GetConversationRepliesParameters{
-		ChannelID: channelID,
-		Timestamp: threadTS,
-		Limit:     1000,
-	}
-
+// SummarizeThread iterates over every message and creates a summarized response.
+//
+// Returns the response file or an error if any.
+func (s *messageProcessorDomain) SummarizeThread(msgs []slack.Message, channelID, threadTS string) (slack.UploadFileV2Parameters, error) {
 	pmls := []parsedMusicLink{}
-
-	msgs, _, _, err := s.client.GetConversationReplies(params)
-	if err != nil {
-		logger.Error("failed to get slack replies", "error", err)
-		return
-	}
 
 	for i := range msgs {
 		m, eErr := s.extractMusicURL(msgs[i].Text)
 		if eErr != nil {
-			logger.Warn("unable to process url in reply", "text", msgs[i].Text, "username", msgs[i].Username)
 			continue
 		}
 
@@ -90,13 +73,12 @@ func (s *slackMessageProcessor) SummarizeThread(channelID, threadTS string) {
 
 	csvF, size, err := s.createCSV(pmls)
 	if err != nil {
-		logger.Error("failed to generate csv file", "error", err)
-		return
+		return slack.UploadFileV2Parameters{}, fmt.Errorf("create csv: %w", err)
 	}
 
 	fileName := fmt.Sprintf("%s-%s.csv", channelID, threadTS)
 
-	_, err = s.client.UploadFileV2(slack.UploadFileV2Parameters{
+	return slack.UploadFileV2Parameters{
 		Reader:          csvF,
 		Filename:        fileName,
 		Title:           fileName,
@@ -104,16 +86,10 @@ func (s *slackMessageProcessor) SummarizeThread(channelID, threadTS string) {
 		Channel:         channelID,
 		ThreadTimestamp: threadTS,
 		FileSize:        size,
-	})
-	if err != nil {
-		logger.Error("failed to post csv file to thread", "error", err)
-		return
-	}
-
-	logger.Info("summarized thread", "count", len(pmls))
+	}, nil
 }
 
-func (s *slackMessageProcessor) createCSV(pmls []parsedMusicLink) (io.Reader, int, error) {
+func (s *messageProcessorDomain) createCSV(pmls []parsedMusicLink) (io.Reader, int, error) {
 	buff := bytes.NewBuffer(nil)
 	w := csv.NewWriter(buff)
 	w.Comma = ';'
@@ -151,12 +127,10 @@ func (s *slackMessageProcessor) createCSV(pmls []parsedMusicLink) (io.Reader, in
 
 // NewSlackMessageProcessor creates a new processor with the given url and title extractors.
 func NewSlackMessageProcessor(
-	client *slack.Client,
 	urlP map[musicextractors.ExtractProvider]musicextractors.MusicURLExtractorFunc,
 	tp map[musicextractors.ExtractProvider]musicextractors.TitleExtractorFunc,
-) SlackMessageProcessor {
-	return &slackMessageProcessor{
-		client:      client,
+) MessageProcessorDomain {
+	return &messageProcessorDomain{
 		processors:  urlP,
 		titleParser: tp,
 	}
