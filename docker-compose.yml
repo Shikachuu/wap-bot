@@ -1,0 +1,33 @@
+services:
+  bot:
+    image: ko://github.com/Shikachuu/wap-bot/cmd/bot
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - default
+    depends_on:
+      otel-lgtm:
+        condition: service_healthy
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3000:3000" # Grafana UI
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+    environment:
+      - OTEL_METRIC_EXPORT_INTERVAL=1000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge

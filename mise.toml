@@ -10,6 +10,9 @@ env_file = ".env"
 experimental = true
 task_output = "quiet"
 
+[env]
+_.source = "./hack/get_docker_sock.sh"
+
 [tasks.init]
 description = "Run initial repo setup commands"
 run = """
@@ -18,22 +21,32 @@ go mod download
 [[ ! -f .env ]] && echo 'Creating .env file...' && cp .env.example .env
 """
 
-[tasks.build]
+[tasks.build-binary]
 description = "Builds a statically linked binary"
 run = 'go build -o bin/bot -a -ldflags "-w -s" cmd/bot/main.go'
 env = { CGO_ENABLED = '0' }
 sources = ["go.mod", "go.sum", "**/*.go"]
 outputs = "bin/bot"
-alias = "b"
+alias = "bb"
 
-[tasks.start]
+[tasks.start-binary]
 description = "Runs the built binary"
 depends = ["build"]
 run = "bin/bot"
+alias = "sb"
 
-[tasks.container]
+[tasks.build]
 env = { KO_DOCKER_REPO = "ghcr.io/shikachuu/wap-bot" }
-run = "ko build ./cmd/bot --bare"
+run = "ko build ./cmd/bot --bare --push=false -L"
+
+[tasks.start]
+description = "Start services with docker compose using ko"
+env = { KO_DOCKER_REPO = "ghcr.io/shikachuu/wap-bot" }
+run = """
+#!/usr/bin/env bash
+ko resolve --bare --push=false -L -f docker-compose.yml | sed '/^---$/d' | docker-compose -f - up --remove-orphans --no-build
+"""
+alias = "s"
 
 [tasks.test]
 description = "Run tests"
