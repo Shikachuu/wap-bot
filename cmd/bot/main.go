@@ -91,6 +91,7 @@ func run(ctx context.Context, cancel context.CancelFunc) error {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer shutdownCancel()
 
+	//nolint:contextcheck // we cannot inherit the context here, it canceled above
 	if sErr := tShutdown(shutdownCtx); sErr != nil {
 		return fmt.Errorf("shutdown otel: %w", sErr)
 	}

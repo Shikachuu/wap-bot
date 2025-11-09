@@ -1,4 +1,4 @@
-// Package messageprocessor contains implemented slack message processors
+// Package domain contains implemented slack message processors, contains the main business logic
 package domain
 
 import (

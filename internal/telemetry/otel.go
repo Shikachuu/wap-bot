@@ -11,13 +11,13 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 )
 
-// Name used to define the application name that is being instrumented
+// Name used to define the application name that is being instrumented.
 const name = "github.com/Shikachuu/wap-bot"
 
 var (
-	// Tracer contains the global tracer implementation that uses the correct package name and params from env vars
+	// Tracer contains the global tracer implementation that uses the correct package name and params from env vars.
 	Tracer = otel.Tracer(name)
-	// Meter contains the global meter implementation that uses the correct package name and params from env vars
+	// Meter contains the global meter implementation that uses the correct package name and params from env vars.
 	Meter = otel.Meter(name)
 )
 
@@ -28,6 +28,7 @@ var (
 // Returns a shutdown function and error if any.
 func SetupOTel(ctx context.Context) (func(context.Context) error, error) {
 	res := resource.Default()
+
 	se, err := autoexport.NewSpanExporter(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("span exporter creation: %w", err)

@@ -27,6 +27,9 @@ linters:
     - sloglint # Consistent log/slog usage
     - loggercheck # Key-value pairs for loggers
 
+    # Metrics
+    - spancheck # Checks for mistakes with OpenTelemetry spans.
+
     # Code quality
     - gocognit # Cognitive complexity
     - gocyclo # Cyclomatic complexity
@@ -140,6 +143,10 @@ linters:
       no-raw-keys: false
       key-naming-case: snake
       args-on-sep-lines: false
+
+    spancheck:
+      checks:
+        - end
 
     gosec:
       severity: medium

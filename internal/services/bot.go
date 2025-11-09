@@ -21,23 +21,21 @@ type SlackBot struct {
 }
 
 // HandleEvents is the main event loop that listens to Slack Socket Events and handles them based on the event's Type field.
-func (bot *SlackBot) HandleEvents(ctx context.Context) {
+func (bot *SlackBot) HandleEvents(bCtx context.Context) {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-bCtx.Done():
 			return
 		case evt, ok := <-bot.socketClient.Events:
 			if !ok {
-				slog.InfoContext(ctx, "events channel closed")
+				slog.InfoContext(bCtx, "events channel closed")
 				return
 			}
 
-			ctx, t := telemetry.Tracer.Start(ctx, "slackbot.handle_events")
+			ctx, t := telemetry.Tracer.Start(bCtx, "slackbot.handle_events")
 			t.SetAttributes(
 				attribute.String("event.type", string(evt.Type)),
 			)
-
-			defer t.End()
 
 			logger := slog.With("event_type", evt.Type)
 			switch evt.Type {
@@ -54,19 +52,22 @@ func (bot *SlackBot) HandleEvents(ctx context.Context) {
 			default:
 				logger.WarnContext(ctx, "not implemented event received")
 			}
+
 			t.End()
 		}
 	}
 }
 
-func (bot *SlackBot) handleEventsAPI(ctx context.Context, logger *slog.Logger, evt *socketmode.Event) {
-	ctx, t := telemetry.Tracer.Start(ctx, "slackbot.handle_events_api")
+func (bot *SlackBot) handleEventsAPI(bCtx context.Context, logger *slog.Logger, evt *socketmode.Event) {
+	ctx, t := telemetry.Tracer.Start(bCtx, "slackbot.handle_events_api")
 	defer t.End()
 
 	eventsAPIEvent, isAPIEvent := evt.Data.(slackevents.EventsAPIEvent)
 	if !isAPIEvent {
 		_ = telemetry.WrapErrorWithTrace(t, "", errIgnoredInvalidAPI)
-		logger.WarnContext(ctx, errIgnoredInvalidAPI.Error())
+
+		logger.WarnContext(ctx, "ignored invalid evets api data")
+
 		return
 	}
 
@@ -84,19 +85,23 @@ func (bot *SlackBot) handleEventsAPI(ctx context.Context, logger *slog.Logger, e
 	case *slackevents.AppMentionEvent:
 		telemetry.StartEvent(t, telemetry.HandleMentionsEvent)
 		t.SetAttributes(attribute.String("user.id", ev.User), attribute.String("slack.channel_id", ev.Channel))
+
 		if err := bot.handleMentions(ctx, ev); err != nil {
 			_ = telemetry.WrapErrorWithTrace(t, "", errHandleEvent)
-			logger.ErrorContext(ctx, errHandleEvent.Error(), "error", err)
+
+			logger.ErrorContext(ctx, "failed to handle event", "error", err)
 		}
+
 		telemetry.EndEvent(t, telemetry.HandleMentionsEvent)
 	default:
-		_ = telemetry.WrapErrorWithTrace(t, "", errHandleEvent)
-		logger.WarnContext(ctx, errNotImplementedEvent.Error(), "events_api_event_type", innerEvent.Type)
+		_ = telemetry.WrapErrorWithTrace(t, "", errNotImplementedEvent)
+
+		logger.WarnContext(ctx, "not implemented events api event received", "events_api_event_type", innerEvent.Type)
 	}
 }
 
-func (bot *SlackBot) handleMentions(ctx context.Context, event *slackevents.AppMentionEvent) error {
-	ctx, t := telemetry.Tracer.Start(ctx, "slackbot.handle_mentions")
+func (bot *SlackBot) handleMentions(bCtx context.Context, event *slackevents.AppMentionEvent) error {
+	ctx, t := telemetry.Tracer.Start(bCtx, "slackbot.handle_mentions")
 	defer t.End()
 
 	if event.ThreadTimeStamp == "" {
@@ -112,7 +117,7 @@ func (bot *SlackBot) handleMentions(ctx context.Context, event *slackevents.AppM
 		telemetry.EndEvent(t, telemetry.NonThreadPostEphemeralEvent)
 
 		if err != nil {
-			return telemetry.WrapErrorWithTrace(t, "unable to post ephemeral notification", err)
+			return telemetry.WrapErrorWithTrace(t, "unable to post ephemeral notification", err) //nolint:wrapcheck // this is a function that wraps the error
 		}
 
 		return nil
@@ -122,18 +127,18 @@ func (bot *SlackBot) handleMentions(ctx context.Context, event *slackevents.AppM
 	case strings.Contains(event.Text, string(CommandSummarize)):
 		err := bot.processThread(ctx, event.Channel, event.ThreadTimeStamp)
 		if err != nil {
-			return telemetry.WrapErrorWithTrace(t, "processing thread", err)
+			return telemetry.WrapErrorWithTrace(t, "processing thread", err) //nolint:wrapcheck // this is a function that wraps the error
 		}
 
 	default:
-		return telemetry.WrapErrorWithTrace(t, "parsing command", ErrInvalidCommandType)
+		return telemetry.WrapErrorWithTrace(t, "parsing command", ErrInvalidCommandType) //nolint:wrapcheck // this is a function that wraps the error
 	}
 
 	return nil
 }
 
-func (bot *SlackBot) processThread(ctx context.Context, channelID, threadTS string) error {
-	ctx, t := telemetry.Tracer.Start(ctx, "slackbot.process_thread")
+func (bot *SlackBot) processThread(bCtx context.Context, channelID, threadTS string) error {
+	ctx, t := telemetry.Tracer.Start(bCtx, "slackbot.process_thread")
 	defer t.End()
 
 	t.SetAttributes(
@@ -146,6 +151,7 @@ func (bot *SlackBot) processThread(ctx context.Context, channelID, threadTS stri
 	logger.DebugContext(ctx, "processing thread")
 
 	telemetry.StartEvent(t, telemetry.GetConversationRepliesEvent)
+
 	msgs, _, _, err := bot.socketClient.GetConversationRepliesContext(
 		ctx,
 		&slack.GetConversationRepliesParameters{
@@ -154,29 +160,33 @@ func (bot *SlackBot) processThread(ctx context.Context, channelID, threadTS stri
 			Limit:     1000,
 		},
 	)
+
 	telemetry.EndEvent(t, telemetry.GetConversationRepliesEvent)
 
 	if err != nil {
-		return telemetry.WrapErrorWithTrace(t, "get slack thread replies", err)
+		return telemetry.WrapErrorWithTrace(t, "get slack thread replies", err) //nolint:wrapcheck // this is a function that wraps the error
 	}
 
 	telemetry.StartEvent(t, telemetry.SummarizeThreadEvent)
 	t.SetAttributes(attribute.Int("slack.message_count", len(msgs)))
 	reply, err := bot.slackMessageProcessor.SummarizeThread(msgs, channelID, threadTS)
+
 	telemetry.EndEvent(t, telemetry.SummarizeThreadEvent)
 
 	if err != nil {
-		return telemetry.WrapErrorWithTrace(t, "summarizing thread", err)
+		return telemetry.WrapErrorWithTrace(t, "summarizing thread", err) //nolint:wrapcheck // this is a function that wraps the error
 	}
 
 	t.SetAttributes(attribute.Int("file.size", reply.FileSize), attribute.String("file.name", reply.Filename))
 
 	telemetry.StartEvent(t, telemetry.UploadFileV2Event)
+
 	_, err = bot.socketClient.UploadFileV2(reply)
+
 	telemetry.EndEvent(t, telemetry.UploadFileV2Event)
 
 	if err != nil {
-		return telemetry.WrapErrorWithTrace(t, "uploading file to reply", err)
+		return telemetry.WrapErrorWithTrace(t, "uploading file to reply", err) //nolint:wrapcheck // this is a function that wraps the error
 	}
 
 	logger.InfoContext(ctx, "summarized thread")
